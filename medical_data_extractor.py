@@ -4,16 +4,18 @@ Medical Data Extractor using Claude API
 This module processes redacted medical record markdown files and extracts
 structured medical information using Anthropic's Claude API.
 
-Key extracted information:
+Output format: JSON with structured data including:
 - Diagnoses (conditions, ICD codes)
-- Medications (name, dosage, frequency)
+- Medications (name, dosage, frequency, route)
 - Lab Results (test name, value, units, reference range, date)
-- Key Dates (visits, procedures, onsets)
+- Key Dates (visits, procedures, onsets, follow-ups)
 - Procedures
-- Other Clinical Findings (symptoms, vital signs, assessments)
+- Vital Signs (blood pressure, heart rate, temperature, etc.)
+- Clinical Findings (symptoms, physical exam, assessments, recommendations)
 """
 
 import os
+import json
 from pathlib import Path
 from typing import Optional
 from dotenv import load_dotenv
@@ -38,10 +40,10 @@ def extract_medical_data(markdown_path: str, model: Optional[str] = None) -> str
                Options: 'claude-3-5-sonnet-20241022' or 'claude-3-5-haiku-20241022'
 
     Returns:
-        Path to the generated analysis file (_analysis.md)
+        Path to the generated JSON analysis file (_analysis.json)
 
     Raises:
-        MedicalDataExtractionError: If extraction fails
+        MedicalDataExtractionError: If extraction fails or JSON parsing fails
         FileNotFoundError: If markdown file doesn't exist
     """
 
@@ -75,59 +77,69 @@ def extract_medical_data(markdown_path: str, model: Optional[str] = None) -> str
     client = Anthropic(api_key=api_key)
 
     # Construct the extraction prompt
-    extraction_prompt = f"""You are a medical information extraction specialist. Analyze the following redacted medical record and extract key medical information into a structured format.
+    extraction_prompt = f"""You are a medical information extraction specialist. Analyze the following redacted medical record and extract key medical information into a structured JSON format.
 
 IMPORTANT: This medical record has already been redacted to protect patient privacy. Do not attempt to infer or reconstruct any redacted information marked as [REDACTED].
 
-Please extract and organize the following information into clearly labeled sections:
+Please extract and organize the information according to the following JSON schema. Return ONLY valid JSON with no additional text or markdown formatting:
 
-## 1. DIAGNOSES
-List all diagnoses, conditions, or medical problems mentioned. Include ICD codes if present.
+{{
+  "diagnoses": [
+    {{
+      "condition": "string",
+      "icd_code": "string (optional)"
+    }}
+  ],
+  "medications": [
+    {{
+      "name": "string",
+      "dosage": "string",
+      "frequency": "string",
+      "route": "string (optional)"
+    }}
+  ],
+  "lab_results": [
+    {{
+      "test_name": "string",
+      "value": "string",
+      "units": "string",
+      "reference_range": "string (optional)",
+      "date": "string (optional)",
+      "abnormal_flag": "string (optional)"
+    }}
+  ],
+  "key_dates": [
+    {{
+      "date": "string",
+      "event_type": "string (visit/procedure/symptom_onset/follow_up)",
+      "description": "string"
+    }}
+  ],
+  "procedures": [
+    {{
+      "name": "string",
+      "date": "string (optional)",
+      "description": "string (optional)"
+    }}
+  ],
+  "vital_signs": [
+    {{
+      "measurement_type": "string (blood_pressure/heart_rate/temperature/respiratory_rate/o2_saturation/weight_bmi)",
+      "value": "string",
+      "units": "string (optional)",
+      "date": "string (optional)"
+    }}
+  ],
+  "clinical_findings": [
+    {{
+      "category": "string (symptom/physical_exam/assessment/recommendation/other)",
+      "finding": "string",
+      "date": "string (optional)"
+    }}
+  ]
+}}
 
-## 2. MEDICATIONS
-List all medications with details:
-- Medication name
-- Dosage
-- Frequency/schedule
-- Route (if mentioned)
-
-## 3. LAB RESULTS
-List all laboratory test results with:
-- Test name
-- Value
-- Units
-- Reference range (if provided)
-- Date (if mentioned)
-- Abnormal flag (if indicated)
-
-## 4. KEY DATES
-Extract important dates:
-- Visit dates
-- Procedure dates
-- Symptom onset dates
-- Follow-up appointments
-
-## 5. PROCEDURES
-List any procedures, surgeries, or interventions mentioned.
-
-## 6. VITAL SIGNS
-List vital signs if present:
-- Blood pressure
-- Heart rate
-- Temperature
-- Respiratory rate
-- O2 saturation
-- Weight/BMI
-
-## 7. OTHER CLINICAL FINDINGS
-Include:
-- Symptoms reported
-- Physical examination findings
-- Clinical assessments
-- Recommendations
-- Any other relevant medical information
-
-For each section, if no information is found, write "None documented" rather than leaving the section empty.
+For each array, if no information is found, return an empty array []. Do not include explanatory text - return only the JSON object.
 
 Here is the redacted medical record to analyze:
 
@@ -135,7 +147,7 @@ Here is the redacted medical record to analyze:
 {redacted_content}
 ---
 
-Provide your structured extraction below:"""
+Return the structured JSON extraction:"""
 
     print(f"Sending to Claude API (model: {model})...")
 
@@ -155,6 +167,24 @@ Provide your structured extraction below:"""
         # Extract the response text
         extracted_data = message.content[0].text
 
+        # Validate and parse JSON response
+        try:
+            # Try to parse the JSON to validate it
+            parsed_json = json.loads(extracted_data)
+        except json.JSONDecodeError as e:
+            # If Claude returns JSON wrapped in markdown code blocks, extract it
+            if "```json" in extracted_data or "```" in extracted_data:
+                # Extract JSON from markdown code blocks
+                import re
+                json_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', extracted_data, re.DOTALL)
+                if json_match:
+                    extracted_data = json_match.group(1)
+                    parsed_json = json.loads(extracted_data)
+                else:
+                    raise MedicalDataExtractionError(f"Failed to parse JSON response: {e}")
+            else:
+                raise MedicalDataExtractionError(f"Failed to parse JSON response: {e}")
+
     except RateLimitError as e:
         raise MedicalDataExtractionError(
             f"Rate limit exceeded. Please try again later. Error: {e}"
@@ -173,29 +203,24 @@ Provide your structured extraction below:"""
         )
 
     # Generate output filename
-    output_path = markdown_file.parent / f"{markdown_file.stem.replace('_extracted', '')}_analysis.md"
+    output_path = markdown_file.parent / f"{markdown_file.stem.replace('_extracted', '')}_analysis.json"
 
-    # Create header for the analysis file
-    analysis_header = """# Medical Record Analysis
-# Generated by Claude AI
+    # Create metadata wrapper for the JSON output
+    output_data = {
+        "_metadata": {
+            "generated_by": "Claude AI Medical Data Extractor",
+            "source_file": str(markdown_file.name),
+            "privacy_notice": "This analysis is based on a redacted medical record. All patient identifying information has been removed to protect privacy.",
+            "disclaimer": "This is an AI-generated analysis for informational purposes only. It should not be used as a substitute for professional medical advice, diagnosis, or treatment. Always consult with qualified healthcare providers.",
+            "model": model
+        },
+        "extracted_data": parsed_json
+    }
 
-**IMPORTANT PRIVACY NOTICE:**
-This analysis is based on a redacted medical record. All patient identifying
-information has been removed to protect privacy.
-
-**Disclaimer:** This is an AI-generated analysis for informational purposes only.
-It should not be used as a substitute for professional medical advice, diagnosis,
-or treatment. Always consult with qualified healthcare providers.
-
----
-
-"""
-
-    # Save the structured extraction
+    # Save the structured extraction as formatted JSON
     try:
         with open(output_path, 'w', encoding='utf-8') as f:
-            f.write(analysis_header)
-            f.write(extracted_data)
+            json.dump(output_data, f, indent=2, ensure_ascii=False)
 
         print(f"✓ Medical data extraction completed successfully!")
         print(f"✓ Analysis saved to: {output_path}")
