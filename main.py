@@ -7,6 +7,7 @@ Simple tool to extract text from medical record PDFs using pdfplumber
 import sys
 import os
 import re
+import argparse
 import pdfplumber
 
 
@@ -284,19 +285,32 @@ def save_text_to_markdown(text, output_path, redact=True):
 def main():
     """Main function to handle command-line execution."""
 
-    # Check if PDF path is provided
-    if len(sys.argv) < 2:
-        print("Usage: python main.py <path-to-pdf-file> [output-folder]")
-        print("Example: python main.py medical_record.pdf")
-        print("         python main.py medical_record.pdf ./output")
-        print("\nArguments:")
-        print("  <path-to-pdf-file>  : Path to the PDF file to extract")
-        print("  [output-folder]     : Optional. Directory to save the output markdown file")
-        print("                        If not specified, saves in same directory as PDF")
-        sys.exit(1)
+    # Set up argument parser
+    parser = argparse.ArgumentParser(
+        description='Extract text from medical record PDFs with privacy protection',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  python main.py medical_record.pdf
+  python main.py medical_record.pdf --output ./output
+  python main.py medical_record.pdf --extract-data
+  python main.py medical_record.pdf --output ./output --extract-data
+        """
+    )
 
-    pdf_path = sys.argv[1]
-    output_folder = sys.argv[2] if len(sys.argv) > 2 else None
+    parser.add_argument('pdf_path',
+                        help='Path to the PDF file to extract')
+    parser.add_argument('-o', '--output',
+                        dest='output_folder',
+                        help='Directory to save the output markdown file (default: same as PDF)')
+    parser.add_argument('--extract-data',
+                        action='store_true',
+                        help='Extract structured medical data using Claude API after PDF extraction')
+
+    args = parser.parse_args()
+
+    pdf_path = args.pdf_path
+    output_folder = args.output_folder
 
     # Check if file exists
     if not os.path.exists(pdf_path):
@@ -352,6 +366,28 @@ def main():
         print(f"Text saved to: {saved_path}")
         print("\nNote: Sensitive information (names, addresses, phone numbers, etc.)")
         print("has been redacted from the saved file for privacy protection.")
+
+        # Extract structured medical data if requested
+        if args.extract_data:
+            print(f"\n{'='*60}")
+            print("Starting medical data extraction with Claude API...")
+            print(f"{'='*60}\n")
+
+            try:
+                from medical_data_extractor import extract_medical_data
+                analysis_path = extract_medical_data(saved_path)
+                print(f"\n{'='*60}")
+                print("Medical data extraction completed!")
+                print(f"Analysis saved to: {analysis_path}")
+                print(f"{'='*60}")
+            except ImportError:
+                print("\n✗ Error: medical_data_extractor module not found.")
+                print("Please ensure medical_data_extractor.py is in the same directory.")
+                sys.exit(1)
+            except Exception as e:
+                print(f"\n✗ Medical data extraction failed: {str(e)}")
+                print("The redacted markdown file was saved successfully, but Claude analysis failed.")
+                sys.exit(1)
 
     except Exception as e:
         print(f"Error: {str(e)}")
