@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python:*)",
+      "Bash(/Library/Frameworks/Python.framework/Versions/3.13/bin/python:*)",
+      "Bash(/Library/Frameworks/Python.framework/Versions/3.13/bin/pip list:*)",
+      "Bash(conda search:*)",
+      "Bash(conda list:*)",
+      "Bash(python3 -m pip show:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
