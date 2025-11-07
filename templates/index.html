@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Medical Record Processor</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <!-- Navigation Header -->
+    <header class="navbar">
+        <div class="navbar-container">
+            <div class="navbar-brand">
+                <svg class="logo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5zm-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11zm3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z"></path>
+                </svg>
+                <span class="brand-text">Medical Record Processor</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-container">
+        <!-- Upload Section -->
+        <section class="upload-section">
+            <div class="upload-card">
+                <h1 class="upload-title">Upload Medical Record</h1>
+                <p class="upload-subtitle">Extract and view key medical information from your PDF</p>
+
+                <div class="upload-area" id="uploadArea">
+                    <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="17 8 12 3 7 8"></polyline>
+                        <line x1="12" y1="3" x2="12" y2="15"></line>
+                    </svg>
+                    <p class="upload-text">Drag and drop your PDF here</p>
+                    <p class="upload-or">or</p>
+                    <label class="upload-button">
+                        <span>Browse Files</span>
+                        <input type="file" id="fileInput" accept=".pdf" hidden>
+                    </label>
+                </div>
+
+                <div id="fileInfo" class="file-info hidden">
+                    <span class="file-name"></span>
+                    <button id="clearBtn" class="clear-btn">✕</button>
+                </div>
+
+                <button id="uploadBtn" class="upload-submit-btn hidden">Process PDF</button>
+
+                <div id="errorMsg" class="error-message hidden"></div>
+                <div id="loadingSpinner" class="loading-spinner hidden">
+                    <div class="spinner"></div>
+                    <p>Processing your medical record...</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Results Section -->
+        <section id="resultsSection" class="results-section hidden">
+            <!-- Tabs for different sections -->
+            <div class="tabs-container">
+                <div class="tabs">
+                    <button class="tab-btn active" data-tab="overview">Overview</button>
+                    <button class="tab-btn" data-tab="diagnoses">Diagnoses</button>
+                    <button class="tab-btn" data-tab="medications">Medications</button>
+                    <button class="tab-btn" data-tab="labs">Lab Results</button>
+                    <button class="tab-btn" data-tab="vitals">Vital Signs</button>
+                    <button class="tab-btn" data-tab="allergies">Allergies</button>
+                    <button class="tab-btn" data-tab="notes">Clinical Notes</button>
+                </div>
+            </div>
+
+            <!-- Tab Content -->
+            <div class="tab-content">
+                <!-- Overview Tab -->
+                <div id="overview" class="tab-pane active">
+                    <div class="content-grid">
+                        <!-- Patient Information -->
+                        <div class="info-card">
+                            <h3 class="card-title">Patient Information</h3>
+                            <div class="info-grid">
+                                <div class="info-item">
+                                    <span class="info-label">Name</span>
+                                    <span id="patientName" class="info-value">-</span>
+                                </div>
+                                <div class="info-item">
+                                    <span class="info-label">Date of Birth</span>
+                                    <span id="patientDob" class="info-value">-</span>
+                                </div>
+                                <div class="info-item">
+                                    <span class="info-label">Medical Record #</span>
+                                    <span id="patientMrn" class="info-value">-</span>
+                                </div>
+                                <div class="info-item">
+                                    <span class="info-label">Visit Date</span>
+                                    <span id="patientVisitDate" class="info-value">-</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Quick Stats -->
+                        <div class="stats-grid">
+                            <div class="stat-card">
+                                <div class="stat-icon diagnoses-icon">📋</div>
+                                <div class="stat-content">
+                                    <span class="stat-value" id="diagnosisCount">0</span>
+                                    <span class="stat-label">Diagnoses</span>
+                                </div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-icon medications-icon">💊</div>
+                                <div class="stat-content">
+                                    <span class="stat-value" id="medicationCount">0</span>
+                                    <span class="stat-label">Medications</span>
+                                </div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-icon labs-icon">🧪</div>
+                                <div class="stat-content">
+                                    <span class="stat-value" id="labCount">0</span>
+                                    <span class="stat-label">Lab Results</span>
+                                </div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-icon allergies-icon">⚠️</div>
+                                <div class="stat-content">
+                                    <span class="stat-value" id="allergyCount">0</span>
+                                    <span class="stat-label">Allergies</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Diagnoses Tab -->
+                <div id="diagnoses" class="tab-pane">
+                    <div class="list-container" id="diagnosesList">
+                        <!-- Populated by JavaScript -->
+                    </div>
+                </div>
+
+                <!-- Medications Tab -->
+                <div id="medications" class="tab-pane">
+                    <div class="list-container" id="medicationsList">
+                        <!-- Populated by JavaScript -->
+                    </div>
+                </div>
+
+                <!-- Lab Results Tab -->
+                <div id="labs" class="tab-pane">
+                    <div class="list-container" id="labsList">
+                        <!-- Populated by JavaScript -->
+                    </div>
+                </div>
+
+                <!-- Vital Signs Tab -->
+                <div id="vitals" class="tab-pane">
+                    <div class="list-container" id="vitalsList">
+                        <!-- Populated by JavaScript -->
+                    </div>
+                </div>
+
+                <!-- Allergies Tab -->
+                <div id="allergies" class="tab-pane">
+                    <div class="list-container" id="allergiesList">
+                        <!-- Populated by JavaScript -->
+                    </div>
+                </div>
+
+                <!-- Clinical Notes Tab -->
+                <div id="notes" class="tab-pane">
+                    <div id="clinicalNotes" class="notes-container">
+                        <!-- Populated by JavaScript -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="action-buttons">
+                <button id="newUploadBtn" class="btn btn-primary">Upload New Record</button>
+                <button id="downloadBtn" class="btn btn-secondary">Download Report</button>
+            </div>
+        </section>
+
+        <!-- Empty State -->
+        <div id="emptyState" class="empty-state">
+            <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
+                <polyline points="13 2 13 9 20 9"></polyline>
+            </svg>
+            <p>Upload a medical record PDF to get started</p>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <p>&copy; 2024 Medical Record Processor. All patient data is handled securely with privacy protection.</p>
+    </footer>
+
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+</body>
+</html>
