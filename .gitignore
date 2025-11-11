@@ -57,6 +57,3 @@ htmlcov/
 .vercel
 .vercel/
 *.vercel.app
-
-.claude/
-CLAUDE.md
