@@ -80,6 +80,13 @@ IMPORTANT: This medical record has already been redacted to protect patient priv
 Please extract and organize the information according to the following JSON schema. Return ONLY valid JSON with no additional text or markdown formatting:
 
 {{
+  "patient_demographics": {{
+    "sex": "string (optional) - e.g., Male, Female, Other, Unknown",
+    "age": "string (optional) - age or age range if mentioned",
+    "race": "string (optional) - race/ethnicity if mentioned",
+    "height": "string (optional) - with units e.g., '5\\'10\\\"', '178 cm'",
+    "weight": "string (optional) - with units e.g., '165 lbs', '75 kg'"
+  }},
   "diagnoses": [
     {{
       "condition": "string",
@@ -165,8 +172,20 @@ Return the structured JSON extraction:"""
             ]
         )
 
+        # Check if response has content
+        if not message.content or len(message.content) == 0:
+            raise MedicalDataExtractionError(
+                f"Claude API returned empty content. Response: {message}"
+            )
+
         # Extract the response text
         extracted_data = message.content[0].text
+
+        # Check if extracted data is empty
+        if not extracted_data or extracted_data.strip() == "":
+            raise MedicalDataExtractionError(
+                f"Claude API returned empty text. Full message: {message}"
+            )
 
         # Validate and parse JSON response
         try:
@@ -174,17 +193,31 @@ Return the structured JSON extraction:"""
             parsed_json = json.loads(extracted_data)
         except json.JSONDecodeError as e:
             # If Claude returns JSON wrapped in markdown code blocks, extract it
-            if "```json" in extracted_data or "```" in extracted_data:
-                # Extract JSON from markdown code blocks
-                import re
-                json_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', extracted_data, re.DOTALL)
-                if json_match:
-                    extracted_data = json_match.group(1)
-                    parsed_json = json.loads(extracted_data)
-                else:
-                    raise MedicalDataExtractionError(f"Failed to parse JSON response: {e}")
+            if "```" in extracted_data:
+                # Strip markdown code blocks
+                # Remove opening ```json or ```
+                if extracted_data.strip().startswith("```json"):
+                    extracted_data = extracted_data.strip()[7:]  # Remove ```json
+                elif extracted_data.strip().startswith("```"):
+                    extracted_data = extracted_data.strip()[3:]  # Remove ```
+
+                # Remove closing ```
+                if extracted_data.strip().endswith("```"):
+                    extracted_data = extracted_data.strip()[:-3]  # Remove trailing ```
+
+                # Try parsing again
+                try:
+                    parsed_json = json.loads(extracted_data.strip())
+                except json.JSONDecodeError as e2:
+                    raise MedicalDataExtractionError(
+                        f"Failed to parse JSON after removing markdown: {e2}\n"
+                        f"Response text (first 500 chars): {extracted_data[:500]}"
+                    )
             else:
-                raise MedicalDataExtractionError(f"Failed to parse JSON response: {e}")
+                raise MedicalDataExtractionError(
+                    f"Failed to parse JSON response: {e}\n"
+                    f"Response text (first 500 chars): {extracted_data[:500]}"
+                )
 
         return parsed_json
 

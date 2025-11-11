@@ -174,10 +174,11 @@ function displayResults() {
 function displayPatientInfo() {
     const patient = medicalData.patient_info || {};
 
-    document.getElementById('patientName').textContent = patient.name || '-';
-    document.getElementById('patientDob').textContent = patient.dob || '-';
-    document.getElementById('patientMrn').textContent = patient.mrn || '-';
-    document.getElementById('patientVisitDate').textContent = patient.date_of_visit || '-';
+    document.getElementById('patientSex').textContent = patient.sex || '-';
+    document.getElementById('patientAge').textContent = patient.age || '-';
+    document.getElementById('patientRace').textContent = patient.race || '-';
+    document.getElementById('patientHeight').textContent = patient.height || '-';
+    document.getElementById('patientWeight').textContent = patient.weight || '-';
 }
 
 function displayStats() {
@@ -430,12 +431,13 @@ function generateReport() {
 Generated: ${new Date().toLocaleString()}
 ================================
 
-PATIENT INFORMATION
--------------------
-Name: ${patient.name || 'N/A'}
-DOB: ${patient.dob || 'N/A'}
-MRN: ${patient.mrn || 'N/A'}
-Visit Date: ${patient.date_of_visit || 'N/A'}
+PATIENT DEMOGRAPHICS
+--------------------
+Sex: ${patient.sex || 'N/A'}
+Age: ${patient.age || 'N/A'}
+Race: ${patient.race || 'N/A'}
+Height: ${patient.height || 'N/A'}
+Weight: ${patient.weight || 'N/A'}
 
 DIAGNOSES
 ---------

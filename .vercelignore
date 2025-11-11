@@ -15,6 +15,7 @@ __pycache__/
 *_analysis.md
 *_analysis.json
 uploads/
+debug/
 
 # Git
 .git/

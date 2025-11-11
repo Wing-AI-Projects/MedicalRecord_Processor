@@ -43,7 +43,11 @@ env/
 *.pdf
 *_extracted.md
 *_analysis.md
+*_analysis.json
 *_structured.json
+
+# Debug outputs (local development only)
+debug/
 
 # Logs
 *.log

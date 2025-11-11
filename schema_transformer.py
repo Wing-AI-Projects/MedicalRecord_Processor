@@ -188,18 +188,22 @@ def transform_clinical_findings_to_notes(claude_clinical_findings: List[Dict[str
     return " | ".join(notes_parts)
 
 
-def create_patient_info() -> Dict[str, str]:
+def create_patient_demographics(claude_demographics: Dict[str, Any]) -> Dict[str, str]:
     """
-    Create patient info section with redacted placeholders.
+    Create patient demographics section from Claude extraction.
 
-    Since all PII is redacted, we return placeholder values.
-    The frontend UI will display these appropriately.
+    Args:
+        claude_demographics: Dictionary containing patient demographics from Claude
+
+    Returns:
+        Dictionary with demographic fields for frontend display
     """
     return {
-        "name": "[REDACTED]",
-        "dob": "[REDACTED]",
-        "mrn": "[REDACTED]",
-        "date_of_visit": datetime.now().strftime("%Y-%m-%d")
+        "sex": claude_demographics.get("sex", "Not specified"),
+        "age": claude_demographics.get("age", "Not specified"),
+        "race": claude_demographics.get("race", "Not specified"),
+        "height": claude_demographics.get("height", "Not specified"),
+        "weight": claude_demographics.get("weight", "Not specified")
     }
 
 
@@ -215,7 +219,7 @@ def transform_claude_output_to_frontend(claude_data: Dict[str, Any]) -> Dict[str
     """
     # Transform each section
     transformed_data = {
-        "patient_info": create_patient_info(),
+        "patient_info": create_patient_demographics(claude_data.get("patient_demographics", {})),
         "diagnoses": transform_diagnoses(claude_data.get("diagnoses", [])),
         "medications": transform_medications(claude_data.get("medications", [])),
         "lab_results": transform_lab_results(claude_data.get("lab_results", [])),
