@@ -1,0 +1,47 @@
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Medical records and extracted data (PRIVACY PROTECTION)
+*.pdf
+*_extracted.md
+*_analysis.md
+*_analysis.json
+uploads/
+
+# Git
+.git/
+.gitignore
+
+# Development
+venv/
+env/
+.venv/
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Documentation
+README.md
+CLAUDE.md
+
+# CLI tool (not needed in serverless)
+main.py

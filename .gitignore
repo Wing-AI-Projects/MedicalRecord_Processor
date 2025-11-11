@@ -52,3 +52,11 @@ env/
 .pytest_cache/
 .coverage
 htmlcov/
+
+# Vercel deployment
+.vercel
+.vercel/
+*.vercel.app
+
+.claude/
+CLAUDE.md

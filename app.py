@@ -6,9 +6,15 @@ Flask-based web server for processing and displaying medical records from PDFs
 
 import os
 import json
+import io
 from flask import Flask, render_template, request, jsonify
 from werkzeug.utils import secure_filename
 from datetime import datetime
+
+# Import our processing modules
+import pdf_processor
+from medical_data_extractor import extract_medical_data_from_text, MedicalDataExtractionError
+from schema_transformer import transform_claude_output_to_frontend, transform_error_to_frontend
 
 app = Flask(__name__)
 
@@ -30,144 +36,49 @@ def allowed_file(filename):
 
 
 # ============================================================================
-# PLACEHOLDER FUNCTIONS - These will be replaced with actual implementations
+# REAL IMPLEMENTATION FUNCTIONS - Integrated from pdf_processor and medical_data_extractor
 # ============================================================================
 
-def extract_medical_data_from_pdf(pdf_path):
+def extract_medical_data_from_pdf(pdf_file_bytes):
     """
-    PLACEHOLDER: Extract structured medical data from PDF.
-    Will be replaced with actual PDF processing logic.
+    Extract structured medical data from PDF file bytes.
+
+    This function orchestrates the complete pipeline:
+    1. Extract text from PDF
+    2. Redact PII/PHI for privacy
+    3. Send to Claude API for structured extraction
+    4. Transform output to frontend format
 
     Args:
-        pdf_path (str): Path to the uploaded PDF file
+        pdf_file_bytes (bytes): PDF file content as bytes
 
     Returns:
-        dict: Structured medical data
+        dict: Structured medical data in frontend format
+
+    Raises:
+        Exception: If any step of the pipeline fails
     """
-    # TODO: Replace with actual PDF extraction logic from main.py
-    return {
-        "status": "success",
-        "data": {
-            "patient_info": {
-                "name": "[REDACTED]",
-                "dob": "[REDACTED]",
-                "mrn": "[REDACTED]",
-                "date_of_visit": "2024-10-15"
-            },
-            "diagnoses": [
-                {
-                    "code": "I10",
-                    "description": "Essential hypertension",
-                    "date": "2024-10-15"
-                },
-                {
-                    "code": "E11",
-                    "description": "Type 2 diabetes mellitus",
-                    "date": "2023-06-20"
-                }
-            ],
-            "medications": [
-                {
-                    "name": "Lisinopril",
-                    "dosage": "10 mg",
-                    "frequency": "Once daily",
-                    "indication": "Hypertension"
-                },
-                {
-                    "name": "Metformin",
-                    "dosage": "500 mg",
-                    "frequency": "Twice daily",
-                    "indication": "Type 2 diabetes"
-                }
-            ],
-            "lab_results": [
-                {
-                    "test_name": "Blood Glucose",
-                    "value": "125",
-                    "unit": "mg/dL",
-                    "reference_range": "70-100",
-                    "date": "2024-10-15",
-                    "status": "High"
-                },
-                {
-                    "test_name": "HbA1c",
-                    "value": "7.2",
-                    "unit": "%",
-                    "reference_range": "<5.7",
-                    "date": "2024-10-15",
-                    "status": "High"
-                },
-                {
-                    "test_name": "Creatinine",
-                    "value": "0.95",
-                    "unit": "mg/dL",
-                    "reference_range": "0.7-1.3",
-                    "date": "2024-10-15",
-                    "status": "Normal"
-                }
-            ],
-            "vital_signs": [
-                {
-                    "parameter": "Blood Pressure",
-                    "value": "145/92",
-                    "unit": "mmHg",
-                    "date": "2024-10-15"
-                },
-                {
-                    "parameter": "Heart Rate",
-                    "value": "78",
-                    "unit": "bpm",
-                    "date": "2024-10-15"
-                },
-                {
-                    "parameter": "Temperature",
-                    "value": "98.6",
-                    "unit": "°F",
-                    "date": "2024-10-15"
-                }
-            ],
-            "allergies": [
-                {
-                    "allergen": "Penicillin",
-                    "reaction": "Rash"
-                },
-                {
-                    "allergen": "Latex",
-                    "reaction": "Swelling"
-                }
-            ],
-            "clinical_notes": "Patient presents with stable chronic conditions. Blood pressure slightly elevated. Continue current medication regimen. Follow-up in 3 months."
-        }
-    }
+    try:
+        # Step 1: Extract text from PDF
+        raw_text = pdf_processor.extract_text_from_pdf(pdf_file_bytes)
 
+        # Step 2: Redact sensitive information for privacy
+        redacted_text = pdf_processor.redact_sensitive_information(raw_text)
 
-def extract_text_from_pdf(pdf_path):
-    """
-    PLACEHOLDER: Extract raw text from PDF.
-    Will be replaced with actual text extraction using pdfplumber.
+        # Step 3: Extract structured data using Claude API
+        claude_output = extract_medical_data_from_text(redacted_text)
 
-    Args:
-        pdf_path (str): Path to the PDF file
+        # Step 4: Transform to frontend format
+        frontend_data = transform_claude_output_to_frontend(claude_output)
 
-    Returns:
-        str: Extracted text from PDF
-    """
-    # TODO: Replace with actual PDF text extraction from main.py
-    return "Sample extracted medical record text. This will be replaced with actual PDF content."
+        return frontend_data
 
-
-def validate_pdf_format(pdf_path):
-    """
-    PLACEHOLDER: Validate that the file is a proper PDF.
-
-    Args:
-        pdf_path (str): Path to the PDF file
-
-    Returns:
-        bool: True if valid PDF, False otherwise
-    """
-    # TODO: Implement actual PDF validation
-    return True
+    except MedicalDataExtractionError as e:
+        # Claude API specific errors
+        return transform_error_to_frontend(str(e), "api_error")
+    except Exception as e:
+        # General processing errors
+        return transform_error_to_frontend(f"Failed to process PDF: {str(e)}", "processing_error")
 
 
 # ============================================================================
@@ -184,6 +95,8 @@ def index():
 def upload_pdf():
     """
     Handle PDF file upload and extract medical data.
+
+    Serverless-compatible: Processes files in-memory without filesystem writes.
 
     Returns:
         JSON: Extracted medical data or error message
@@ -212,40 +125,28 @@ def upload_pdf():
                 'message': 'Only PDF files are allowed'
             }), 400
 
+        # Read file content into memory
+        file_bytes = file.read()
+
         # Check file size
-        if len(file.read()) > MAX_FILE_SIZE:
+        if len(file_bytes) > MAX_FILE_SIZE:
             return jsonify({
                 'status': 'error',
                 'message': 'File is too large (max 50MB)'
             }), 400
 
-        file.seek(0)  # Reset file pointer after reading
-
-        # Save the file
-        filename = secure_filename(file.filename)
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_')
-        filename = timestamp + filename
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-
-        file.save(filepath)
-
-        # Validate PDF
-        if not validate_pdf_format(filepath):
-            os.remove(filepath)
+        # Validate PDF format (check magic number)
+        if not pdf_processor.validate_pdf_format(file_bytes):
             return jsonify({
                 'status': 'error',
-                'message': 'Invalid PDF file'
+                'message': 'Invalid PDF file format'
             }), 400
 
-        # Extract medical data
-        medical_data = extract_medical_data_from_pdf(filepath)
+        # Extract medical data (all in-memory, no file writes)
+        medical_data = extract_medical_data_from_pdf(file_bytes)
 
-        # Clean up the file after extraction
-        try:
-            os.remove(filepath)
-        except:
-            pass
-
+        # medical_data is already in the correct format from transform_claude_output_to_frontend
+        # or transform_error_to_frontend, so we can return it directly
         return jsonify(medical_data), 200
 
     except Exception as e:
@@ -293,4 +194,4 @@ def internal_server_error(error):
 
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=True, host='0.0.0.0', port=5001)

@@ -30,27 +30,24 @@ class MedicalDataExtractionError(Exception):
     pass
 
 
-def extract_medical_data(markdown_path: str, model: Optional[str] = None) -> str:
+def extract_medical_data_from_text(redacted_text: str, model: Optional[str] = None) -> dict:
     """
-    Extract structured medical data from a redacted markdown file using Claude API.
+    Extract structured medical data from redacted text content using Claude API.
+
+    This is the in-memory version designed for serverless environments.
+    Returns parsed JSON dict instead of saving to file.
 
     Args:
-        markdown_path: Path to the redacted markdown file (_extracted.md)
+        redacted_text: The redacted medical record text content
         model: Optional Claude model to use. If None, uses CLAUDE_MODEL from .env
-               Options: 'claude-3-5-sonnet-20241022' or 'claude-3-5-haiku-20241022'
+               Options: 'claude-sonnet-4-5', 'claude-3-5-sonnet-20241022', or 'claude-3-5-haiku-20241022'
 
     Returns:
-        Path to the generated JSON analysis file (_analysis.json)
+        dict: Parsed JSON with structured medical data
 
     Raises:
         MedicalDataExtractionError: If extraction fails or JSON parsing fails
-        FileNotFoundError: If markdown file doesn't exist
     """
-
-    # Validate input file
-    markdown_file = Path(markdown_path)
-    if not markdown_file.exists():
-        raise FileNotFoundError(f"Markdown file not found: {markdown_path}")
 
     # Get API key and model from environment
     api_key = os.getenv("ANTHROPIC_API_KEY")
@@ -64,14 +61,13 @@ def extract_medical_data(markdown_path: str, model: Optional[str] = None) -> str
     if model is None:
         model = os.getenv("CLAUDE_MODEL", "claude-3-5-haiku-20241022")
 
-    print(f"Reading redacted medical record from: {markdown_path}")
-
-    # Read the redacted markdown content
-    try:
-        with open(markdown_path, 'r', encoding='utf-8') as f:
-            redacted_content = f.read()
-    except Exception as e:
-        raise MedicalDataExtractionError(f"Failed to read markdown file: {e}")
+    # Normalize model names (Vercel might use different format)
+    model_mapping = {
+        "claude-sonnet-4-5": "claude-sonnet-4-20250514",
+        "sonnet": "claude-sonnet-4-20250514",
+        "haiku": "claude-3-5-haiku-20241022"
+    }
+    model = model_mapping.get(model, model)
 
     # Initialize Anthropic client
     client = Anthropic(api_key=api_key)
@@ -87,7 +83,8 @@ Please extract and organize the information according to the following JSON sche
   "diagnoses": [
     {{
       "condition": "string",
-      "icd_code": "string (optional)"
+      "icd_code": "string (optional)",
+      "date": "string (optional)"
     }}
   ],
   "medications": [
@@ -136,6 +133,12 @@ Please extract and organize the information according to the following JSON sche
       "finding": "string",
       "date": "string (optional)"
     }}
+  ],
+  "allergies": [
+    {{
+      "allergen": "string",
+      "reaction": "string (optional)"
+    }}
   ]
 }}
 
@@ -144,12 +147,10 @@ For each array, if no information is found, return an empty array []. Do not inc
 Here is the redacted medical record to analyze:
 
 ---
-{redacted_content}
+{redacted_text}
 ---
 
 Return the structured JSON extraction:"""
-
-    print(f"Sending to Claude API (model: {model})...")
 
     # Call Claude API
     try:
@@ -185,6 +186,8 @@ Return the structured JSON extraction:"""
             else:
                 raise MedicalDataExtractionError(f"Failed to parse JSON response: {e}")
 
+        return parsed_json
+
     except RateLimitError as e:
         raise MedicalDataExtractionError(
             f"Rate limit exceeded. Please try again later. Error: {e}"
@@ -201,6 +204,55 @@ Return the structured JSON extraction:"""
         raise MedicalDataExtractionError(
             f"Unexpected error during Claude API call: {e}"
         )
+
+
+def extract_medical_data(markdown_path: str, model: Optional[str] = None) -> str:
+    """
+    Extract structured medical data from a redacted markdown file using Claude API.
+
+    Args:
+        markdown_path: Path to the redacted markdown file (_extracted.md)
+        model: Optional Claude model to use. If None, uses CLAUDE_MODEL from .env
+               Options: 'claude-3-5-sonnet-20241022' or 'claude-3-5-haiku-20241022'
+
+    Returns:
+        Path to the generated JSON analysis file (_analysis.json)
+
+    Raises:
+        MedicalDataExtractionError: If extraction fails or JSON parsing fails
+        FileNotFoundError: If markdown file doesn't exist
+    """
+
+    # Validate input file
+    markdown_file = Path(markdown_path)
+    if not markdown_file.exists():
+        raise FileNotFoundError(f"Markdown file not found: {markdown_path}")
+
+    # Get API key and model from environment
+    api_key = os.getenv("ANTHROPIC_API_KEY")
+    if not api_key or api_key == "your-api-key-here":
+        raise MedicalDataExtractionError(
+            "ANTHROPIC_API_KEY not set in .env file. "
+            "Please add your API key from https://console.anthropic.com/settings/keys"
+        )
+
+    # Determine which model to use
+    if model is None:
+        model = os.getenv("CLAUDE_MODEL", "claude-3-5-haiku-20241022")
+
+    print(f"Reading redacted medical record from: {markdown_path}")
+
+    # Read the redacted markdown content
+    try:
+        with open(markdown_path, 'r', encoding='utf-8') as f:
+            redacted_content = f.read()
+    except Exception as e:
+        raise MedicalDataExtractionError(f"Failed to read markdown file: {e}")
+
+    print(f"Sending to Claude API (model: {model or os.getenv('CLAUDE_MODEL', 'claude-3-5-haiku-20241022')})...")
+
+    # Use the in-memory function
+    parsed_json = extract_medical_data_from_text(redacted_content, model)
 
     # Generate output filename
     output_path = markdown_file.parent / f"{markdown_file.stem.replace('_extracted', '')}_analysis.json"
