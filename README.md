@@ -125,23 +125,36 @@ Enable debug mode to troubleshoot extraction issues:
 
 ## Deployment
 
-### Vercel (Serverless)
+### Quick Deploy to Vercel
 
-1. **Install Vercel CLI**
+For detailed deployment instructions, see **[DEPLOYMENT.md](DEPLOYMENT.md)** - comprehensive guide with multiple deployment methods.
+
+#### Quick Start (3 steps)
+
+1. **Run the deployment script**
    ```bash
-   npm install -g vercel
+   ./deploy.sh
    ```
 
-2. **Configure environment variables**
-
-   Add to your Vercel project settings:
-   - `ANTHROPIC_API_KEY`
-   - `CLAUDE_MODEL`
-
-3. **Deploy**
+2. **Or deploy manually with Vercel CLI**
    ```bash
-   vercel
+   npx vercel login
+   npx vercel --prod
    ```
+
+3. **Or use Vercel Dashboard**
+   - Go to [vercel.com/new](https://vercel.com/new)
+   - Import your GitHub repository
+   - Add environment variables (see below)
+   - Click Deploy
+
+#### Required Environment Variables
+
+Add these in your Vercel project settings:
+- `ANTHROPIC_API_KEY` - Your Anthropic API key ([Get one here](https://console.anthropic.com/settings/keys))
+- `CLAUDE_MODEL` - Model name (default: `claude-sonnet-4-5`)
+
+**For complete deployment guide with troubleshooting, see [DEPLOYMENT.md](DEPLOYMENT.md)**
 
 Note: Debug mode is disabled in production (Vercel has ephemeral filesystem)
 
